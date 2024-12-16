@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
+import sqlite3
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///apps.db'
@@ -16,6 +17,19 @@ class App(db.Model):
 # Ensure database tables are created
 with app.app_context():
     db.create_all()
+
+    # Import data from sample_data.sql (only if it's needed or not already populated)
+    conn = sqlite3.connect('apps.db')
+    cursor = conn.cursor()
+    try:
+        # Execute the sample_data.sql script to insert data
+        with open('sample_data.sql', 'r') as f:
+            cursor.executescript(f.read())
+        conn.commit()
+    except Exception as e:
+        print(f"Error importing data: {e}")
+    finally:
+        conn.close()
 
 @app.route('/add-app', methods=['POST'])
 def add_app():
@@ -35,20 +49,19 @@ def add_app():
 
 @app.route('/get-app/<int:id>', methods=['GET'])
 def get_app(id):
-    app_instance = App.query.get(id)
-    if not app_instance:
-        return jsonify({"error": "App not found"}), 404
-
-    return jsonify({
-        "id": app_instance.id,
-        "app_name": app_instance.app_name,
-        "version": app_instance.version,
-        "description": app_instance.description
-    })
+    app = db.session.get(App, id)  # Updated to use session.get() instead of query.get()
+    if not app:
+        return {"error": "App not found"}, 404
+    return {
+        "id": app.id,
+        "app_name": app.app_name,
+        "version": app.version,
+        "description": app.description
+    }, 200
 
 @app.route('/delete-app/<int:id>', methods=['DELETE'])
 def delete_app(id):
-    app_instance = App.query.get(id)
+    app_instance = db.session.get(App, id)  # Updated to use session.get() instead of query.get()
     if not app_instance:
         return jsonify({"error": "App not found"}), 404
 
